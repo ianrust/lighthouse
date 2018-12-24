@@ -8,17 +8,19 @@ from time import sleep
 from flask import Flask, request, jsonify
 import threading
 import time
-import board
-import neopixel
+# import board
+# import neopixel
 import sys
 
-color_specfile = '/home/pi/Lighthouse/colorspec.txt'
+# color_specfile = '/home/pi/Lighthouse/colorspec.txt'
+color_specfile = 'colorspec.txt'
 
 sun_query = 'https://api.sunrise-sunset.org/json?lat=37.7749&lng=-122.4194&date=today&formatted=0'
 
 num_pixels = 120
-pixels = neopixel.NeoPixel(board.D18, num_pixels, brightness=1.0, auto_write=False,
-                           pixel_order=neopixel.GRB)
+# pixels = neopixel.NeoPixel(board.D18, num_pixels, brightness=1.0, auto_write=False,
+#                            pixel_order=neopixel.GRB)
+pixels = [0 for _ in range(num_pixels)]
 
 app = Flask(__name__)
 
@@ -214,7 +216,8 @@ def updateColor(offset):
             print('Scheduled brightness: {}'.format(scheduled_brightness))
             sys.stdout.flush()
 
-    pixels.show()
+    # TODO: update this to show the neopixels on computer / board
+    # pixels.show()
     time.sleep(0.01)
 
 def colorUpdateLoop():
