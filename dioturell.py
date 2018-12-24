@@ -10,6 +10,7 @@ import threading
 import time
 import board
 import neopixel
+import sys
 
 color_specfile = '/home/pi/Lighthouse/colorspec.txt'
 
@@ -21,11 +22,9 @@ pixels = neopixel.NeoPixel(board.D18, num_pixels, brightness=1.0, auto_write=Fal
 
 app = Flask(__name__)
 
-sleep(2.0)
-
 colorspec = [] #tuple of time of day (in military time), colors (2 rgb triples), scrollinterval
 
-user_gradient = [[0,0,0], [0,0,0], 1]# 2 rgb triples and scrollinterval
+user_gradient = [[0,0,0], [0,0,0], 1, None] # 2 rgb triples and scrollinterval and brightness
 user_timer_start = datetime.datetime.min
 color_mutex = threading.Lock()
 fade_in_secs = 5.0
@@ -56,6 +55,10 @@ def updateUserGradient():
                             request.json['color'][1]['g'],
                             request.json['color'][1]['b']]
         user_gradient[2] = request.json['scrollspeed']
+        try:
+            user_gradient[3] = request.json['brightness']
+        except:
+            user_gradient[3] = None
 
         user_timer_start = datetime.datetime.now()
 
@@ -63,11 +66,15 @@ def updateUserGradient():
         transition_color2 = current_color2
         transition_speed = current_speed
 
+        print('Received new gradient: {}'.format(user_gradient))
+        sys.stdout.flush()
         color_mutex.release()
 
         return jsonify({'success': True}), 201
     except:
         color_mutex.release()
+        print('Received bad request: {}'.format(request.json))
+        sys.stdout.flush()
         return jsonify({'success': False}), 400
 
 def interpolateColors(color1, color2, ratio):
@@ -106,7 +113,8 @@ def updateGradientSchedule():
             colorspec.append((second, 
                               (int(cols[1]),int(cols[2]),int(cols[3])),
                               (int(cols[4]),int(cols[5]),int(cols[6])),
-                              int(cols[7])
+                              int(cols[7]),
+                              int(cols[8])
                               ))
 
     seconds_in_day = (now - midnight).total_seconds()
@@ -141,25 +149,35 @@ def updateColor(offset):
 
     scheduled_color1 = interpolateColors(gradient1[1], gradient2[1], ratio)
     scheduled_color2 = interpolateColors(gradient1[2], gradient2[2], ratio)
-
+    scheduled_brightness = gradient2[4] * ratio + gradient1[4] * (1-ratio)
     scheduled_speed = (gradient2[3] * ratio + gradient1[3] * (1-ratio)) / normal_speed
 
     # interpolate colors from user input
     color_mutex.acquire()
     user_secs = (now - user_timer_start).total_seconds()
     user_ratio = user_secs / fade_in_secs
-    if user_ratio > 1.0:
+    if user_secs > (fade_in_secs + fade_out_secs):
+        current_color1 = scheduled_color1
+        current_color2 = scheduled_color2
+        current_speed = scheduled_speed
+    elif user_ratio > 1.0:
         user_ratio = 1.0 - ((user_secs - fade_in_secs) / fade_out_secs)
         user_ratio = max(user_ratio, 0.0)
+        user_ratio = min(user_ratio, 1.0)
         current_color1 = interpolateColors(scheduled_color1, user_gradient[0], user_ratio)
         current_color2 = interpolateColors(scheduled_color2, user_gradient[1], user_ratio)
         current_speed = user_gradient[2] / normal_speed * user_ratio + scheduled_speed * (1-user_ratio)
     else:
         user_ratio = max(user_ratio, 0.0)
+        user_ratio = min(user_ratio, 1.0)
         current_color1 = interpolateColors(transition_color1, user_gradient[0], user_ratio)
         current_color2 = interpolateColors(transition_color2, user_gradient[1], user_ratio)
-        current_speed = user_gradient[2] / normal_speed * user_ratio + transition_speed * (1-user_ratio)
+        #current_speed = user_gradient[2] / normal_speed * user_ratio + transition_speed * (1-user_ratio)
+
     color_mutex.release()
+
+    faded_color1 = [int(float(cc)*scheduled_brightness/100.0) for cc in current_color1]
+    faded_color2 = [int(float(cc)*scheduled_brightness/100.0) for cc in current_color2]
 
     # set the colors
     for i in range(int(num_pixels/2)):
@@ -168,11 +186,36 @@ def updateColor(offset):
         gradient_ratio = 2.0 * float((i + offset) % int(num_pixels/2)) / float(num_pixels/2)
         if (gradient_ratio > 1.0):
             gradient_ratio = -gradient_ratio + 2.0
-        this_color = interpolateColors(current_color1, current_color2, gradient_ratio)
-        pixels[left_index] = this_color
-        pixels[right_index] = this_color
+        this_color = interpolateColors(faded_color1, faded_color2, gradient_ratio)
+        try:
+            pixels[left_index] = this_color
+            pixels[right_index] = this_color
+        except BaseException as e:
+            print('{0} when setting color {1} on pixel {2}"'.format(e,this_color,i))
+            print('Interpolation data:')
+            now = datetime.datetime.now()
+            midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            seconds_in_day = (now - midnight).total_seconds()
+            print('seconds in day: {}'.format(seconds_in_day))
+            print('Gradient1: {}'.format(gradient1))
+            print('Gradient2: {}'.format(gradient2))
+            print('Scheduled Color1: {}'.format(scheduled_color1))
+            print('Scheduled Color2: {}'.format(scheduled_color2))
+            print('Scheduler ratio: {}'.format(ratio))
+            print('Transition Color1: {}'.format(transition_color1))
+            print('Transition Color2: {}'.format(transition_color2))
+            print('User Color1: {}'.format(user_gradient[0]))
+            print('User Color2: {}'.format(user_gradient[1]))
+            print('User ratio: {}'.format(user_ratio))
+            print('Current Final Color1: {}'.format(current_color1))
+            print('Current Final Color2: {}'.format(current_color2))
+            print('Current Final Color2: {}'.format(current_color2))
+            print('Gradient Ratio: {}'.format(gradient_ratio))
+            print('Scheduled brightness: {}'.format(scheduled_brightness))
+            sys.stdout.flush()
 
     pixels.show()
+    time.sleep(0.01)
 
 def colorUpdateLoop():
     global current_speed
@@ -185,7 +228,11 @@ def colorUpdateLoop():
 
 def gradientUpdateLoop():
     while 1:
-        updateGradientSchedule()
+        try:
+            updateGradientSchedule()
+        except BaseException as e:
+            print('{!r}; restarting color scheduling thread'.format(e))
+            sys.stdout.flush()
         time.sleep(1.0)
 
 def startColorRunner():
