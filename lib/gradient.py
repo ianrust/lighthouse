@@ -18,7 +18,7 @@ class Gradient(object):
     	self.scroll_speed = scroll_speed
 
     def __repr__(self):
-        return '<Gradient seconds={seconds} color_1={color_!} color_2={color_2} brighness={brightness} scroll_speed={scroll_speed} />'.format(
+        return '<Gradient seconds={seconds} color_1={color_1} color_2={color_2} brighness={brightness} scroll_speed={scroll_speed} />'.format(
             seconds=self.seconds,
             color_1=self.color_1,
             color_2=self.color_2,

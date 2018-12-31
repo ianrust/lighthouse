@@ -21,7 +21,9 @@ def get_seconds_into_day():
 
 def get_seconds_now():
     now = datetime.datetime.now()
-    seconds_now = now.total_seconds()
+    epoch = datetime.datetime.utcfromtimestamp(0)
+
+    seconds_now = (now - epoch).total_seconds()
     return seconds_now
 
 

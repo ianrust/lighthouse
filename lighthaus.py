@@ -26,6 +26,8 @@ class LighthausController(object):
             fade_out_time: float = 20.0,
     ):
         self.writer = writer
+
+        # gradient coming from color schedule file
         self.scheduled_gradient = Gradient(
                 seconds=get_seconds_now(),
                 color_1=initial_color_1,
@@ -33,7 +35,11 @@ class LighthausController(object):
                 scroll_speed=initial_scroll_speed,
                 brightness=brightness
             )
+
+        # gradient last set to leds
         self.current_gradient = self.scheduled_gradient
+
+        # gradient sent by usuer
         self.user_gradient = Gradient(
                 seconds=0,
                 color_1=initial_color_1,
@@ -41,6 +47,8 @@ class LighthausController(object):
                 scroll_speed=initial_scroll_speed,
                 brightness=brightness
             )
+
+        # gradient set to leds when a new user gradient arrived
         self.transition_gradient = Gradient(
                 seconds=0,
                 color_1=initial_color_1,
@@ -67,16 +75,18 @@ class LighthausController(object):
             # default, be on schedule
             faded_gradient = self.scheduled_gradient
             user_ratio = 0
+            # in fade-in transition between the transition gradient and the selected user gradient
             if time_since_input < self.fade_in_time:
                 user_ratio = time_since_input / self.fade_in_time
                 user_ratio = max(user_ratio, 0.0)
                 user_ratio = min(user_ratio, 1.0)
                 faded_gradient = interpolate_gradients(self.transition_gradient, self.user_gradient, user_ratio)
+            # in fade out go between user gradient and the scheduled gradient 
             elif time_since_input > self.fade_in_time and time_since_input < (self.fade_in_time + self.fade_out_time):
                 user_ratio = 1.0 - ((time_since_input - self.fade_in_time) / self.fade_out_time)
                 user_ratio = max(user_ratio, 0.0)
                 user_ratio = min(user_ratio, 1.0)
-                faded_gradient = interpolate_gradients(self.transition_gradient, self.user_gradient, user_ratio)
+                faded_gradient = interpolate_gradients(self.scheduled_gradient, self.user_gradient, user_ratio)
 
             writer.write_gradient(faded_gradient, offset=current_offset)
 
