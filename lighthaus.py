@@ -142,11 +142,9 @@ if __name__ == '__main__':
     )
 
     controller_in_q = controller.run()
-    while True:
-        pass
-    # update_from_schedule_async(controller_in_q)
+    update_from_schedule_async(controller_in_q)
 
-    # app = Flask(__name__)
-    # print('starting app')
-    # sys.stdout.flush()
-    # setup_endpoint(app, controller_in_q)
+    app = Flask(__name__)
+    print('starting app')
+    sys.stdout.flush()
+    setup_endpoint(app, controller_in_q)

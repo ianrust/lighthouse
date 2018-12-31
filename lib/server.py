@@ -39,4 +39,4 @@ def setup_endpoint(app, out_q: queue.Queue):
         view_func=set_user_gradient,
         defaults={'out_q': out_q},
         methods=['POST'])
-    app.run(host='0.0.0.0', debug=True)
+    app.run(host='0.0.0.0', debug=False)
