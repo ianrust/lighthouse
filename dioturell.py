@@ -29,10 +29,11 @@ colorspec = []  # tuple of time of day (in military time), colors (2 rgb triples
 user_gradient = [[0, 0, 0], [0, 0, 0], 1, None]  # 2 rgb triples and scrollinterval and brightness
 user_timer_start = datetime.datetime.min
 color_mutex = threading.Lock()
-fade_in_secs = 5.0
-fade_out_secs = 20.0
 
-normal_speed = 10000.0
+FADE_IN_SECS = 5.0
+FADE_OUT_SECS = 20.0
+
+NORMAL_SPEED = 10000.0
 
 gradient1 = None
 gradient2 = None
@@ -59,6 +60,7 @@ def updateUserGradient():
                             request.json['color'][1]['g'],
                             request.json['color'][1]['b']]
         user_gradient[2] = request.json['scrollspeed']
+
         try:
             user_gradient[3] = request.json['brightness']
         except:
@@ -96,13 +98,13 @@ def updateGradientSchedule():
 
     now = datetime.datetime.now()
     sunrise_utc = parser.parse(sun_resp['results']['sunrise'])
-    sunrise_secs = (
-                sunrise_utc - sunrise_utc.replace(hour=8, minute=0, second=0, microsecond=0)).total_seconds()
+    sunrise_secs = (sunrise_utc - sunrise_utc.replace(hour=8, minute=0, second=0, microsecond=0)).total_seconds()
     sunset_utc = parser.parse(sun_resp['results']['sunset'])
     sunset_secs = (sunset_utc + datetime.timedelta(hours=24) -
                    sunset_utc.replace(hour=8, minute=0, second=0, microsecond=0)).total_seconds()
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
+    # Colorspec headers:
     with open(color_specfile, 'r') as c:
         for line in c:
             cols = line.split(',')
@@ -159,23 +161,23 @@ def updateColor(offset):
     scheduled_color1 = interpolateColors(gradient1[1], gradient2[1], ratio)
     scheduled_color2 = interpolateColors(gradient1[2], gradient2[2], ratio)
     scheduled_brightness = gradient2[4] * ratio + gradient1[4] * (1 - ratio)
-    scheduled_speed = (gradient2[3] * ratio + gradient1[3] * (1 - ratio)) / normal_speed
+    scheduled_speed = (gradient2[3] * ratio + gradient1[3] * (1 - ratio)) / NORMAL_SPEED
 
     # interpolate colors from user input
     color_mutex.acquire()
     user_secs = (now - user_timer_start).total_seconds()
-    user_ratio = user_secs / fade_in_secs
-    if user_secs > (fade_in_secs + fade_out_secs):
+    user_ratio = user_secs / FADE_IN_SECS
+    if user_secs > (FADE_IN_SECS + FADE_OUT_SECS):
         current_color1 = scheduled_color1
         current_color2 = scheduled_color2
         current_speed = scheduled_speed
     elif user_ratio > 1.0:
-        user_ratio = 1.0 - ((user_secs - fade_in_secs) / fade_out_secs)
+        user_ratio = 1.0 - ((user_secs - FADE_IN_SECS) / FADE_OUT_SECS)
         user_ratio = max(user_ratio, 0.0)
         user_ratio = min(user_ratio, 1.0)
         current_color1 = interpolateColors(scheduled_color1, user_gradient[0], user_ratio)
         current_color2 = interpolateColors(scheduled_color2, user_gradient[1], user_ratio)
-        current_speed = user_gradient[2] / normal_speed * user_ratio + scheduled_speed * (1 - user_ratio)
+        current_speed = user_gradient[2] / NORMAL_SPEED * user_ratio + scheduled_speed * (1 - user_ratio)
     else:
         user_ratio = max(user_ratio, 0.0)
         user_ratio = min(user_ratio, 1.0)
@@ -193,6 +195,7 @@ def updateColor(offset):
         left_index = i
         right_index = int(i + (num_pixels / 2 - i) * 2 - 1)
         gradient_ratio = 2.0 * float((i + offset) % int(num_pixels / 2)) / float(num_pixels / 2)
+
         if (gradient_ratio > 1.0):
             gradient_ratio = -gradient_ratio + 2.0
         this_color = interpolateColors(faded_color1, faded_color2, gradient_ratio)
