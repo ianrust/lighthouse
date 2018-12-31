@@ -95,8 +95,8 @@ class LighthausController(object):
             # store for passing to transition_gradient when a new color is received
             self.current_gradient = faded_gradient
 
-            print('timesince', time_since_input)
-            print('self.transition_gradient', self.transition_gradient)
+            # print('timesince', time_since_input)
+            # print('self.transition_gradient', self.transition_gradient)
             sys.stdout.flush()
             self._check_queue(in_q)
             time.sleep(self.sleep_time)
