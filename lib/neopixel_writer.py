@@ -34,7 +34,7 @@ class NeoPixelWriter(object):
 
         self.pixels.show()
 
-    def write_gradient(self, gradient: Gradient):
+    def write_gradient(self, gradient: Gradient, offset: float):
         """
         The pixels are set up like a snake, so the first pixel is next to the last pixel
 

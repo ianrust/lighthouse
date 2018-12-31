@@ -5,7 +5,7 @@ from lib.utils import interpolate_value
 class Gradient(object):
 	def __init__(
 		self,
-		seconds: int,
+		seconds: float,
         color_1: Color,
         color_2: Color,
         brightness: float,
@@ -28,7 +28,7 @@ class Gradient(object):
 
 def interpolate_gradients(gradient_1: Gradient, gradient_2: Gradient, ratio: float) -> Gradient:
 	gradient = Gradient(
-			int(interpolate_value(gradient_1.seconds, gradient_2.seconds, ratio)),
+			interpolate_value(gradient_1.seconds, gradient_2.seconds, ratio),
 			interpolate_colors(gradient_1.color_1, gradient_2.color_1, ratio),
 			interpolate_colors(gradient_1.color_2, gradient_2.color_2, ratio),
 			interpolate_value(gradient_1.brightness, gradient_2.brightness, ratio),

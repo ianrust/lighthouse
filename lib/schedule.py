@@ -2,6 +2,7 @@ import csv
 import datetime
 from collections import namedtuple
 from typing import Tuple, List
+import threading
 
 import maya
 import requests
@@ -16,6 +17,12 @@ def get_seconds_into_day():
 
     seconds_into_day = (now - midnight).total_seconds()
     return seconds_into_day
+
+
+def get_seconds_now():
+    now = datetime.datetime.now()
+    seconds_now = now.total_seconds()
+    return seconds_now
 
 
 SUNRISE_SUNSET_QUERY_URL = (
@@ -141,4 +148,20 @@ def get_colors_from_schedule_file(
     scheduled_gradient = interpolate_colors(gradient_1, gradient_2, ratio)
 
     return color_1, color_2, brightness, scroll_speed
+
+
+def update_from_schedule_continuously(out_q: queue.Queue):
+    while True:
+        scheduled_gradient = get_colors_from_schedule_file()
+
+        out_q.put({
+            'scheduled_gradient': scheduled_gradient 
+        })
+
+        time.sleep(1)
+
+
+def update_from_schedule_async(out_q: queue.Queue):
+    thread = threading.Thread(target=update_from_schedule_async, args=(out_q), daemon=True)
+    thread.start()
 
