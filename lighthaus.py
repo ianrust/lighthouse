@@ -33,24 +33,13 @@ class LighthausController(object):
 
         self.is_running = False
 
-    def get_num_offsets(self) -> int:
-        """
-        A slower scroll_speed -> a smaller offset -> higher number of offsets
-
-        :return:
-        """
-        return int(MAX_SCROLL_OFFSET * self.scroll_speed)
-
     def _run(self, q=queue.Queue):
         current_offset = 0
 
         while True:
             # TODO: figure out how to fade the colors / speed
 
-            num_offsets = self.get_num_offsets()
-            offset_delta = 1 / (num_offsets + 1)  # The amount we change the offset each round
-
-            current_offset = (current_offset + offset_delta) % 1
+            current_offset = (current_offset + self.scroll_speed) % 1
 
             writer.write_gradient(self.color_1, self.color_2, offset=current_offset,
                                   brightness=self.brightness)
@@ -63,17 +52,8 @@ class LighthausController(object):
             new_config = q.get(block=False)
             print('new_config', new_config)
 
-            if 'scroll_speed' in new_config:
-                self.scroll_speed = new_config['scroll_speed']
-
-            if 'color_1' in new_config:
-                self.color_1 = new_config['color_1']
-
-            if 'color_2' in new_config:
-                self.color_2 = new_config['color_2']
-
-            if 'brightness' in new_config:
-                self.brightness = new_config['brightness']
+            if 'scheduled_gradient' in new_config:
+                self.scroll_speed = new_config['scheduled_gradient']
 
             q.task_done()
         except queue.Empty:
@@ -119,13 +99,10 @@ if __name__ == '__main__':
     #     time.sleep(4)
 
     while True:
-        (color_1, color_2, brightness, scroll_speed) = get_colors_from_schedule_file()
+        scheduled_gradient = get_colors_from_schedule_file()
 
         q.put({
-            'color_1': color_1,
-            'color_2': color_2,
-            'brightness': brightness,
-            'scroll_speed': scroll_speed,
+            'scheduled_gradient': scheduled_gradient 
         })
 
         time.sleep(1)

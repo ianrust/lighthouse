@@ -6,8 +6,8 @@ from typing import Tuple, List
 import maya
 import requests
 
+from lib.gradient import Gradient, interpolate_gradients
 from lib.color import Color, interpolate_colors
-from lib.utils import interpolate_value
 
 
 def get_seconds_into_day():
@@ -38,13 +38,10 @@ def get_sunrise_and_sunset_seconds() -> Tuple[int, int]:
     return int(sunrise_secs), int(sunset_secs)
 
 
-TimePointInfo = namedtuple('TimePointInfo', ['seconds', 'color_1', 'color_2', 'brightness', 'scroll_speed'])
-
-
-def get_time_point_infos_from_schedule_file(schedule_file_name: str) -> List[TimePointInfo]:
+def get_gradient_infos_from_schedule_file(schedule_file_name: str) -> List[Gradient]:
     sunrise_secs, sunset_secs = get_sunrise_and_sunset_seconds()
 
-    time_point_infos = []
+    gradient_infos = []
 
     with open(schedule_file_name) as schedule_file:
         reader = csv.DictReader(schedule_file)
@@ -72,16 +69,16 @@ def get_time_point_infos_from_schedule_file(schedule_file_name: str) -> List[Tim
                 blue=int(line['blue_2']),
             )
 
-            time_point_infos.append(
-                TimePointInfo(
+            gradient_infos.append(
+                Gradient(
                     seconds=seconds,
                     color_1=color_1,
                     color_2=color_2,
-                    brightness=float(line['brightness']),
+                    brightness=float(line['brightness']) / 100.0,
                     scroll_speed=float(line['scroll_speed']),
                 )
             )
-        return sorted(time_point_infos, key=lambda time_point: time_point.seconds)
+        return sorted(gradient_infos, key=lambda gradient: gradient.seconds)
 
 
 SECONDS_IN_DAY = 24 * 60 * 60
@@ -89,7 +86,7 @@ SECONDS_IN_DAY = 24 * 60 * 60
 
 def get_colors_from_schedule_file(
         schedule_file_name: str = 'color_schedule.csv'
-) -> Tuple[Color, Color, float, float]:
+) -> Gradient:
     """
     Get scheduled colors. The schedule file stores a series of points in the day. Each point of the day
     has two colors.
@@ -100,55 +97,48 @@ def get_colors_from_schedule_file(
     :param schedule_file_name:
     :return: (color_1, color_2, brightness, speed) - scheduled colors
     """
-    time_point_infos = get_time_point_infos_from_schedule_file(schedule_file_name)
+    gradient_infos = get_gradient_infos_from_schedule_file(schedule_file_name)
 
     # Get time points before and after the current time
-    min_seconds = time_point_infos[0].seconds
-    max_seconds = time_point_infos[-1].seconds
+    min_seconds = gradient_infos[0].seconds
+    max_seconds = gradient_infos[-1].seconds
 
     seconds_into_day = get_seconds_into_day()
 
     if seconds_into_day <= min_seconds or seconds_into_day >= max_seconds:
-        time_point_1 = time_point_infos[0]
-        time_point_2 = time_point_infos[-1]
+        gradient_1 = gradient_infos[0]
+        gradient_2 = gradient_infos[-1]
 
-        time_point_2_to_midnight = SECONDS_IN_DAY - time_point_2.seconds
+        gradient_2_to_midnight = SECONDS_IN_DAY - gradient_2.seconds
 
-        # (seconds from midnight to time_point_1) + (seconds from time_point_2 to end of day)
-        delta_between_time_points = time_point_1.seconds + time_point_2_to_midnight
+        # (seconds from midnight to gradient_1) + (seconds from gradient_2 to end of day)
+        delta_between_gradients = gradient_1.seconds + gradient_2_to_midnight
 
         if seconds_into_day <= min_seconds:
-            ratio = (time_point_2_to_midnight + seconds_into_day) / delta_between_time_points
+            ratio = (gradient_2_to_midnight + seconds_into_day) / delta_between_gradients
         else:
             assert seconds_into_day >= max_seconds
-            ratio = (seconds_into_day - time_point_2.seconds) / delta_between_time_points
+            ratio = (seconds_into_day - gradient_2.seconds) / delta_between_gradients
     else:
-        earlier_time_points = [
-            tpi for tpi in time_point_infos
+        earlier_gradients = [
+            tpi for tpi in gradient_infos
             if tpi.seconds <= seconds_into_day
         ]
-        later_time_points = [
-            tpi for tpi in time_point_infos
+        later_gradients = [
+            tpi for tpi in gradient_infos
             if tpi.seconds >= seconds_into_day
         ]
 
-        time_point_1 = earlier_time_points[-1]
-        time_point_2 = later_time_points[0]
+        gradient_1 = earlier_gradients[-1]
+        gradient_2 = later_gradients[0]
 
-        if time_point_1 == time_point_2:
+        if gradient_1 == gradient_2:
             ratio = 0
         else:
-            delta_between_time_points = time_point_2.seconds - time_point_1.seconds
-            ratio = (seconds_into_day - time_point_1.seconds) / delta_between_time_points
+            delta_between_gradients = gradient_2.seconds - gradient_1.seconds
+            ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
 
-    color_1 = interpolate_colors(time_point_1.color_1, time_point_2.color_1, ratio)
-    color_2 = interpolate_colors(time_point_1.color_2, time_point_2.color_2, ratio)
-
-    brightness = interpolate_value(time_point_1.brightness, time_point_2.brightness, ratio,
-                                   should_round=False)
-    brightness = brightness / 100
-
-    scroll_speed = interpolate_value(time_point_1.scroll_speed, time_point_2.scroll_speed, ratio)
+    scheduled_gradient = interpolate_colors(gradient_1, gradient_2, ratio)
 
     return color_1, color_2, brightness, scroll_speed
 
