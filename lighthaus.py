@@ -64,7 +64,7 @@ class LighthausController(object):
         self.is_running = False
 
     def _run(self, in_q: queue.Queue):
-        current_offset = 0
+        current_offset = 0.0
 
         while True:
 
@@ -79,13 +79,13 @@ class LighthausController(object):
                 user_ratio = time_since_input / self.fade_in_time
                 user_ratio = max(user_ratio, 0.0)
                 user_ratio = min(user_ratio, 1.0)
-                faded_gradient = interpolate_gradients(self.transition_gradient, self.user_gradient, user_ratio)
+                faded_gradient = interpolate_gradients(self.user_gradient, self.transition_gradient, user_ratio)
             # in fade out go between user gradient and the scheduled gradient 
             elif time_since_input > self.fade_in_time and time_since_input < (self.fade_in_time + self.fade_out_time):
                 user_ratio = 1.0 - ((time_since_input - self.fade_in_time) / self.fade_out_time)
                 user_ratio = max(user_ratio, 0.0)
                 user_ratio = min(user_ratio, 1.0)
-                faded_gradient = interpolate_gradients(self.scheduled_gradient, self.user_gradient, user_ratio)
+                faded_gradient = interpolate_gradients(self.user_gradient, self.scheduled_gradient, user_ratio)
 
             # Run a counter to scroll the gradient
             current_offset = (current_offset + faded_gradient.scroll_speed) % 1
@@ -94,10 +94,8 @@ class LighthausController(object):
 
             # store for passing to transition_gradient when a new color is received
             self.current_gradient = faded_gradient
+            self.current_gradient.seconds = get_seconds_now()
 
-            # print('timesince', time_since_input)
-            # print('self.transition_gradient', self.transition_gradient)
-            sys.stdout.flush()
             self._check_queue(in_q)
             time.sleep(self.sleep_time)
 
@@ -125,8 +123,6 @@ class LighthausController(object):
 
         graphics_thread = threading.Thread(target=self._run, kwargs=dict(in_q=in_q), daemon=True)
         graphics_thread.start()
-        print('started thread')
-        sys.stdout.flush()
 
         return in_q
 
@@ -145,6 +141,4 @@ if __name__ == '__main__':
     update_from_schedule_async(controller_in_q)
 
     app = Flask(__name__)
-    print('starting app')
-    sys.stdout.flush()
     setup_endpoint(app, controller_in_q)

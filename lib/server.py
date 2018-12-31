@@ -16,8 +16,8 @@ def set_user_gradient(out_q: queue.Queue):
             color_2 = Color(request.json['color'][1]['r'],
                             request.json['color'][1]['g'],
                             request.json['color'][1]['b']),
-            scroll_speed = 0.01, # TODO send a real one
-            brightness = 0 # TODO send a real one
+            scroll_speed = -0.1, # TODO send a real one
+            brightness = 0.5 # TODO send a real one
             )
 
         out_q.put({

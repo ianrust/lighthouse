@@ -33,7 +33,7 @@ def interpolate_value(
         value_1: float,
         value_2: float,
         ratio: float,
-        should_round: bool = True
+        should_round: bool = False
 ) -> Union[float, int]:
     new_val = value_1 * ratio + value_2 * (1 - ratio)
 
