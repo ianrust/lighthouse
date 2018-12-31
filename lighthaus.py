@@ -118,6 +118,9 @@ class LighthausController(object):
             pass
 
     def run(self) -> queue.Queue:
+        assert not self.is_running
+        self.is_running = True
+        
         in_q = queue.Queue()
 
         graphics_thread = threading.Thread(target=self._run, kwargs=dict(in_q=in_q), daemon=True)
