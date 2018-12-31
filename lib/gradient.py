@@ -1,5 +1,4 @@
-from color import Color, interpolate_colors
-
+from lib.color import Color, interpolate_colors
 from lib.utils import interpolate_value
 
 class Gradient(object):
@@ -18,7 +17,7 @@ class Gradient(object):
         self.scroll_speed = scroll_speed
 
     def __repr__(self):
-        return '<Gradient seconds={seconds} color_1={color_1} color_2={color_2} brighness={brightness} scroll_speed={scroll_speed} />'.format(
+        return '<Gradient seconds={seconds} color_1={color_1} color_2={color_2} brightness={brightness} scroll_speed={scroll_speed} />'.format(
             seconds=self.seconds,
             color_1=self.color_1,
             color_2=self.color_2,

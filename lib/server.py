@@ -1,10 +1,10 @@
 from flask import Flask, request, jsonify
 import queue
+import sys
 
 from lib.color import Color
 from lib.gradient import Gradient
-
-from schedule import get_seconds_now
+from lib.schedule import get_seconds_now
 
 def set_user_gradient(out_q: queue.Queue):
     try:
@@ -16,8 +16,8 @@ def set_user_gradient(out_q: queue.Queue):
             color_2 = Color(request.json['color'][1]['r'],
                             request.json['color'][1]['g'],
                             request.json['color'][1]['b']),
-            scroll_speed = request.json['scrollspeed'],
-            brightness = 0
+            scroll_speed = 0.01, # TODO send a real one
+            brightness = 0 # TODO send a real one
             )
 
         out_q.put({
@@ -33,7 +33,10 @@ def set_user_gradient(out_q: queue.Queue):
         sys.stdout.flush()
         return jsonify({'success': False}), 400
 
-def setup_endoint(app, out_q: queue.Queue):
+def setup_endpoint(app, out_q: queue.Queue):
     app.add_url_rule(
-        '/', view_func=set_user_gradient,
-        defaults={'out_q': out_q})
+        '/',
+        view_func=set_user_gradient,
+        defaults={'out_q': out_q},
+        methods=['POST'])
+    app.run(host='0.0.0.0', debug=True)

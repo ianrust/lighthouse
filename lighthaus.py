@@ -3,6 +3,7 @@
 from flask import Flask
 import itertools
 import queue
+import sys
 import threading
 import time
 
@@ -66,8 +67,6 @@ class LighthausController(object):
         current_offset = 0
 
         while True:
-            # Run a counter to scroll the gradient
-            current_offset = (current_offset + self.scroll_speed) % 1
 
             # Fade in/out the user inputs from the flask server
             time_since_input = get_seconds_now() - self.transition_gradient.seconds
@@ -88,12 +87,17 @@ class LighthausController(object):
                 user_ratio = min(user_ratio, 1.0)
                 faded_gradient = interpolate_gradients(self.scheduled_gradient, self.user_gradient, user_ratio)
 
+            # Run a counter to scroll the gradient
+            current_offset = (current_offset + faded_gradient.scroll_speed) % 1
+            # scroll with current gradient
             writer.write_gradient(faded_gradient, offset=current_offset)
 
             # store for passing to transition_gradient when a new color is received
             self.current_gradient = faded_gradient
-            self.current_gradient.seconds = get_seconds_now()
 
+            print('timesince', time_since_input)
+            print('self.transition_gradient', self.transition_gradient)
+            sys.stdout.flush()
             self._check_queue(in_q)
             time.sleep(self.sleep_time)
 
@@ -101,6 +105,7 @@ class LighthausController(object):
         try:
             new_config = in_q.get(block=False)
             print('new_config', new_config)
+            sys.stdout.flush()
 
             if 'scheduled_gradient' in new_config:
                 self.scheduled_gradient = new_config['scheduled_gradient']
@@ -115,42 +120,28 @@ class LighthausController(object):
     def run(self) -> queue.Queue:
         in_q = queue.Queue()
 
-        graphics_thread = threading.Thread(target=self._run, args=(in_q,), daemon=True)
+        graphics_thread = threading.Thread(target=self._run, kwargs=dict(in_q=in_q), daemon=True)
         graphics_thread.start()
+        print('started thread')
+        sys.stdout.flush()
 
         return in_q
 
 
 if __name__ == '__main__':
-    color1 = Color(red=255, blue=0, green=0)
-    color2 = Color(red=0, blue=255, green=0)
-
     writer = create_neopixel_writer()
 
     controller = LighthausController(
         writer=writer,
-        initial_color_1=color1,
-        initial_color_2=color2,
-        initial_scroll_speed=0.8,
+        initial_color_1=Color(red=255, blue=0, green=0),
+        initial_color_2=Color(red=0, blue=255, green=0),
+        initial_scroll_speed=0.01,
     )
+
     controller_in_q = controller.run()
     update_from_schedule_async(controller_in_q)
 
     app = Flask(__name__)
+    print('starting app')
+    sys.stdout.flush()
     setup_endpoint(app, controller_in_q)
-
-    scroll_speeds = [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]
-    colors = [
-        Color(red=255, blue=0, green=0),
-        Color(red=0, blue=10, green=0),
-    ]
-
-    # for scroll_speed in itertools.cycle(scroll_speeds):
-    #     print('scroll_speed', scroll_speed)
-    #     q.put({
-    #         'scroll_speed': scroll_speed,
-    #         # 'color_1': color,
-    #         # 'color_2': color,
-    #     })
-    #
-    #     time.sleep(4)

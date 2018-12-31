@@ -1,14 +1,16 @@
 import csv
 import datetime
 from collections import namedtuple
+import queue
 from typing import Tuple, List
 import threading
+import time
 
 import maya
 import requests
 
 from lib.gradient import Gradient, interpolate_gradients
-from lib.color import Color, interpolate_colors
+from lib.color import Color
 
 
 def get_seconds_into_day():
@@ -103,6 +105,9 @@ def get_colors_from_schedule_file(
     We look at the current time of day, find the time points on either side, and interpolate between
     those two time points.
 
+    This is the only part of the code where the time of day is in the seconds slot of Gradient. When
+    this returns it has seconds as now since epoch, as with all other gradients
+
     :param schedule_file_name:
     :return: (color_1, color_2, brightness, speed) - scheduled colors
     """
@@ -147,9 +152,10 @@ def get_colors_from_schedule_file(
             delta_between_gradients = gradient_2.seconds - gradient_1.seconds
             ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
 
-    scheduled_gradient = interpolate_colors(gradient_1, gradient_2, ratio)
+    scheduled_gradient = interpolate_gradients(gradient_1, gradient_2, ratio)
+    scheduled_gradient.seconds = get_seconds_now()
 
-    return color_1, color_2, brightness, scroll_speed
+    return scheduled_gradient
 
 
 def update_from_schedule_continuously(out_q: queue.Queue):
@@ -164,6 +170,6 @@ def update_from_schedule_continuously(out_q: queue.Queue):
 
 
 def update_from_schedule_async(out_q: queue.Queue):
-    thread = threading.Thread(target=update_from_schedule_async, args=(out_q), daemon=True)
+    thread = threading.Thread(target=update_from_schedule_continuously, kwargs=dict(out_q=out_q), daemon=True)
     thread.start()
 
