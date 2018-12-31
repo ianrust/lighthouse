@@ -120,7 +120,7 @@ class LighthausController(object):
     def run(self) -> queue.Queue:
         assert not self.is_running
         self.is_running = True
-        
+
         in_q = queue.Queue()
 
         graphics_thread = threading.Thread(target=self._run, kwargs=dict(in_q=in_q), daemon=True)
@@ -142,6 +142,8 @@ if __name__ == '__main__':
     )
 
     controller_in_q = controller.run()
+    while True:
+        pass
     # update_from_schedule_async(controller_in_q)
 
     # app = Flask(__name__)
