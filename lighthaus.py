@@ -64,6 +64,9 @@ class LighthausController(object):
 
         self.is_running = False
 
+        # function for getting the schedule
+        self.schedule_interpolator = None
+
     def _run(self, in_q: queue.Queue):
         current_offset = 0.0
 
@@ -71,6 +74,10 @@ class LighthausController(object):
 
             # Fade in/out the user inputs from the flask server
             time_since_input = get_seconds_since_epoch() - self.transition_gradient.seconds
+
+            # evaluate interpolator
+            if not self.schedule_interpolator is None:
+                self.scheduled_gradient = self.schedule_interpolator()
 
             # default, be on schedule
             gradient_to_write = self.scheduled_gradient
@@ -109,8 +116,8 @@ class LighthausController(object):
             print('new_config', new_config)
             sys.stdout.flush()
 
-            if 'scheduled_gradient' in new_config:
-                self.scheduled_gradient = new_config['scheduled_gradient']
+            if 'schedule_interpolator' in new_config:
+                self.schedule_interpolator = new_config['schedule_interpolator']
             if 'user_gradient' in new_config:
                 self.user_gradient = new_config['user_gradient']
                 self.transition_gradient = self.current_gradient

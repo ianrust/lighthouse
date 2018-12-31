@@ -15,7 +15,11 @@ class Color(object):
 
     @staticmethod
     def _validate_color(color):
-        assert 0 <= color <= 255
+        if 0 <= color <= 255:
+            pass
+        else:
+            print(color)
+            assert False
 
     def to_rgb_tuple(self) -> Tuple[int, int, int]:
         return self.red, self.green, self.blue

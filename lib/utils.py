@@ -35,13 +35,12 @@ def interpolate_value(
         ratio: float,
 ) -> float:
     """
-
     :param value_1:
     :param value_2:
-    :param ratio:  0 -> value_2, 1 -> value_1
+    :param ratio:  0 -> value_1, 1 -> value_2
     :return:
     """
-    new_val = value_1 * ratio + value_2 * (1 - ratio)
+    new_val = value_2 * ratio + value_1 * (1 - ratio)
 
     return new_val
 
