@@ -33,11 +33,19 @@ def interpolate_value(
         value_1: float,
         value_2: float,
         ratio: float,
-        should_round: bool = True
-) -> Union[float, int]:
+) -> float:
+    """
+
+    :param value_1:
+    :param value_2:
+    :param ratio:  0 -> value_2, 1 -> value_1
+    :return:
+    """
     new_val = value_1 * ratio + value_2 * (1 - ratio)
 
-    if should_round:
-        return round(new_val)
-
     return new_val
+
+
+def clamp(val: float, min_val: float, max_val: float) -> float:
+    assert max_val > min_val
+    return max(min(val, max_val), min_val)

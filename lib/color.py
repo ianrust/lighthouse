@@ -35,9 +35,9 @@ def interpolate_colors(color_1: Color, color_2: Color, ratio: float, brightness:
     :return:
     """
     color = Color(
-        red=int(interpolate_value(color_1.red, color_2.red, ratio) * brightness),
-        green=int(interpolate_value(color_1.green, color_2.green, ratio) * brightness),
-        blue=int(interpolate_value(color_1.blue, color_2.blue, ratio) * brightness),
+        red=round(interpolate_value(color_1.red, color_2.red, ratio) * brightness),
+        green=round(interpolate_value(color_1.green, color_2.green, ratio) * brightness),
+        blue=round(interpolate_value(color_1.blue, color_2.blue, ratio) * brightness),
     )
 
     return color

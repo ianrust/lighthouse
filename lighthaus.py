@@ -1,17 +1,18 @@
 #!/usr/bin/python3
 
+from flask import Flask
 import itertools
 import queue
+import sys
 import threading
 import time
 
 from lib.color import Color
+from lib.gradient import Gradient, interpolate_gradients
 from lib.neopixel_writer import create_neopixel_writer
-
-# Set the max scrollspeed
-from lib.schedule import get_colors_from_schedule_file
-
-MAX_SCROLL_OFFSET = 600
+from lib.schedule import update_from_schedule_async, get_seconds_since_epoch
+from lib.server import setup_endpoint
+from lib.utils import clamp
 
 
 class LighthausController(object):
@@ -23,109 +24,125 @@ class LighthausController(object):
             initial_scroll_speed: float = 0,
             sleep_time: float = 0.01,
             brightness: float = 1.0,
+            fade_in_time: float = 5.0,
+            fade_out_time: float = 20.0,
     ):
         self.writer = writer
-        self.color_1 = initial_color_1
-        self.color_2 = initial_color_2
-        self.scroll_speed = initial_scroll_speed
+
+        # gradient coming from color schedule file
+        self.scheduled_gradient = Gradient(
+                seconds=get_seconds_since_epoch(),
+                color_1=initial_color_1,
+                color_2=initial_color_2,
+                scroll_speed=initial_scroll_speed,
+                brightness=brightness
+            )
+
+        # gradient last set to leds
+        self.current_gradient = self.scheduled_gradient
+
+        # gradient sent by user
+        self.user_gradient = Gradient(
+                seconds=0,
+                color_1=initial_color_1,
+                color_2=initial_color_2,
+                scroll_speed=initial_scroll_speed,
+                brightness=brightness
+            )
+
+        # gradient set to leds when a new user gradient arrived
+        self.transition_gradient = Gradient(
+                seconds=0,
+                color_1=initial_color_1,
+                color_2=initial_color_2,
+                scroll_speed=initial_scroll_speed,
+                brightness=brightness
+            )
         self.sleep_time = sleep_time
-        self.brightness = brightness
+        self.fade_in_time = fade_in_time
+        self.fade_out_time = fade_out_time
 
         self.is_running = False
 
-    def get_num_offsets(self) -> int:
-        """
-        A slower scroll_speed -> a smaller offset -> higher number of offsets
-
-        :return:
-        """
-        return int(MAX_SCROLL_OFFSET * self.scroll_speed)
-
-    def _run(self, q=queue.Queue):
-        current_offset = 0
+    def _run(self, in_q: queue.Queue):
+        current_offset = 0.0
 
         while True:
-            # TODO: figure out how to fade the colors / speed
 
-            num_offsets = self.get_num_offsets()
-            offset_delta = 1 / (num_offsets + 1)  # The amount we change the offset each round
+            # Fade in/out the user inputs from the flask server
+            time_since_input = get_seconds_since_epoch() - self.transition_gradient.seconds
 
-            current_offset = (current_offset + offset_delta) % 1
+            # default, be on schedule
+            gradient_to_write = self.scheduled_gradient
 
-            writer.write_gradient(self.color_1, self.color_2, offset=current_offset,
-                                  brightness=self.brightness)
+            total_fade_time = self.fade_in_time + self.fade_out_time
+            is_fading_in = time_since_input < self.fade_in_time
+            is_fading_out = self.fade_in_time < time_since_input < total_fade_time
 
-            self._check_queue(q)
+            if is_fading_in:
+                # in fade-in transition between the transition gradient and the selected user gradient
+                user_ratio = clamp(time_since_input / self.fade_in_time, 0, 1)
+                gradient_to_write = interpolate_gradients(self.user_gradient, self.transition_gradient,
+                                                          user_ratio)
+            elif is_fading_out:
+                # in fade out go between user gradient and the scheduled gradient
+                time_into_fade_out = time_since_input - self.fade_in_time
+                scheduled_ratio = clamp(time_into_fade_out / self.fade_out_time, 0, 1)
+                gradient_to_write = interpolate_gradients(self.scheduled_gradient, self.user_gradient,
+                                                          scheduled_ratio)
+
+            # Run a counter to scroll the gradient
+            current_offset = (current_offset + gradient_to_write.scroll_speed) % 1
+            # scroll with current gradient
+            writer.write_gradient(gradient_to_write, offset=current_offset)
+
+            # store for passing to transition_gradient when a new color is received
+            self.current_gradient = gradient_to_write
+            self.current_gradient.seconds = get_seconds_since_epoch()
+
+            self._check_queue(in_q)
             time.sleep(self.sleep_time)
 
-    def _check_queue(self, q: queue.Queue):
+    def _check_queue(self, in_q: queue.Queue):
         try:
-            new_config = q.get(block=False)
+            new_config = in_q.get(block=False)
             print('new_config', new_config)
+            sys.stdout.flush()
 
-            if 'scroll_speed' in new_config:
-                self.scroll_speed = new_config['scroll_speed']
+            if 'scheduled_gradient' in new_config:
+                self.scheduled_gradient = new_config['scheduled_gradient']
+            if 'user_gradient' in new_config:
+                self.user_gradient = new_config['user_gradient']
+                self.transition_gradient = self.current_gradient
 
-            if 'color_1' in new_config:
-                self.color_1 = new_config['color_1']
-
-            if 'color_2' in new_config:
-                self.color_2 = new_config['color_2']
-
-            if 'brightness' in new_config:
-                self.brightness = new_config['brightness']
-
-            q.task_done()
+            in_q.task_done()
         except queue.Empty:
             pass
 
     def run(self) -> queue.Queue:
-        q = queue.Queue()
+        assert not self.is_running
+        self.is_running = True
 
-        graphics_thread = threading.Thread(target=self._run, args=(q,), daemon=True)
+        in_q = queue.Queue()
+
+        graphics_thread = threading.Thread(target=self._run, kwargs=dict(in_q=in_q), daemon=True)
         graphics_thread.start()
 
-        return q
+        return in_q
 
 
 if __name__ == '__main__':
-    color1 = Color(red=255, blue=0, green=0)
-    color2 = Color(red=0, blue=255, green=0)
-
     writer = create_neopixel_writer()
 
     controller = LighthausController(
         writer=writer,
-        initial_color_1=color1,
-        initial_color_2=color2,
-        initial_scroll_speed=0.8,
+        initial_color_1=Color(red=255, blue=0, green=0),
+        initial_color_2=Color(red=0, blue=255, green=0),
+        initial_scroll_speed=0.01,
     )
-    q = controller.run()
 
-    scroll_speeds = [0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0]
-    colors = [
-        Color(red=255, blue=0, green=0),
-        Color(red=0, blue=10, green=0),
-    ]
+    controller_in_q = controller.run()
+    update_from_schedule_async(controller_in_q)
 
-    # for scroll_speed in itertools.cycle(scroll_speeds):
-    #     print('scroll_speed', scroll_speed)
-    #     q.put({
-    #         'scroll_speed': scroll_speed,
-    #         # 'color_1': color,
-    #         # 'color_2': color,
-    #     })
-    #
-    #     time.sleep(4)
-
-    while True:
-        (color_1, color_2, brightness, scroll_speed) = get_colors_from_schedule_file()
-
-        q.put({
-            'color_1': color_1,
-            'color_2': color_2,
-            'brightness': brightness,
-            'scroll_speed': scroll_speed,
-        })
-
-        time.sleep(1)
+    app = Flask(__name__)
+    setup_endpoint(app, controller_in_q)

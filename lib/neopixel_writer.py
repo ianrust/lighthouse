@@ -1,6 +1,7 @@
 from typing import List
 
 from lib.color import generate_color_gradient, Color
+from lib.gradient import Gradient
 from lib.utils import rotate_list
 
 
@@ -33,7 +34,7 @@ class NeoPixelWriter(object):
 
         self.pixels.show()
 
-    def write_gradient(self, color_1: Color, color_2: Color, offset: float = 0, brightness: float = 1.0):
+    def write_gradient(self, gradient: Gradient, offset: float):
         """
         The pixels are set up like a snake, so the first pixel is next to the last pixel
 
@@ -43,17 +44,14 @@ class NeoPixelWriter(object):
         1 6
         0 7
 
-        :param color_1:
-        :param color_2:
-        :param offset:
-        :param brightness:
+        :param gradient:
         :return:
         """
         half_color_list = generate_color_gradient(
-            color_1,
-            color_2,
+            gradient.color_1,
+            gradient.color_2,
             int(self.num_pixels / 2),
-            brightness=brightness,
+            brightness=gradient.brightness,
         )
 
         if offset:
