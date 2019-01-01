@@ -24,8 +24,9 @@ class LighthausController(object):
             initial_scroll_speed: float = 0,
             sleep_time: float = 0.01,
             brightness: float = 1.0,
-            fade_in_time: float = 5.0,
-            fade_out_time: float = 20.0,
+            fade_in_duration: float = 5.0,
+            sustain_user_duration: float = 30.0,
+            fade_out_duration: float = 20.0,
     ):
         self.writer = writer
 
@@ -59,8 +60,9 @@ class LighthausController(object):
                 brightness=brightness
             )
         self.sleep_time = sleep_time
-        self.fade_in_time = fade_in_time
-        self.fade_out_time = fade_out_time
+        self.fade_in_duration = fade_in_duration
+        self.fade_out_duration = fade_out_duration
+        self.sustain_user_duration = sustain_user_duration
 
         self.is_running = False
 
@@ -75,19 +77,25 @@ class LighthausController(object):
             # default, be on schedule
             gradient_to_write = self.scheduled_gradient
 
-            total_fade_time = self.fade_in_time + self.fade_out_time
-            is_fading_in = time_since_input < self.fade_in_time
-            is_fading_out = self.fade_in_time < time_since_input < total_fade_time
+            total_user_input_duration = (
+                    self.fade_in_duration + self.sustain_user_duration + self.fade_out_duration)
+            sustain_user_input_end = self.fade_in_duration + self.sustain_user_duration
+
+            is_fading_in = time_since_input < self.fade_in_duration
+            is_sustaining_user_input = self.fade_in_duration <= time_since_input < sustain_user_input_end
+            is_fading_out = sustain_user_input_end <= time_since_input < total_user_input_duration
 
             if is_fading_in:
                 # in fade-in transition between the transition gradient and the selected user gradient
-                user_ratio = clamp(time_since_input / self.fade_in_time, 0, 1)
+                user_ratio = clamp(time_since_input / self.fade_in_duration, 0, 1)
                 gradient_to_write = interpolate_gradients(self.user_gradient, self.transition_gradient,
                                                           user_ratio)
+            elif is_sustaining_user_input:
+                gradient_to_write = self.user_gradient
             elif is_fading_out:
                 # in fade out go between user gradient and the scheduled gradient
-                time_into_fade_out = time_since_input - self.fade_in_time
-                scheduled_ratio = clamp(time_into_fade_out / self.fade_out_time, 0, 1)
+                time_into_fade_out = time_since_input - sustain_user_input_end
+                scheduled_ratio = clamp(time_into_fade_out / self.fade_out_duration, 0, 1)
                 gradient_to_write = interpolate_gradients(self.scheduled_gradient, self.user_gradient,
                                                           scheduled_ratio)
 
