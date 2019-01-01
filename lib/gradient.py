@@ -27,10 +27,10 @@ class Gradient(object):
 
 def interpolate_gradients(gradient_1: Gradient, gradient_2: Gradient, ratio: float) -> Gradient:
     gradient = Gradient(
-            interpolate_value(gradient_1.seconds, gradient_2.seconds, ratio),
-            interpolate_colors(gradient_1.color_1, gradient_2.color_1, ratio),
-            interpolate_colors(gradient_1.color_2, gradient_2.color_2, ratio),
-            interpolate_value(gradient_1.brightness, gradient_2.brightness, ratio),
-            interpolate_value(gradient_1.scroll_speed, gradient_2.scroll_speed, ratio),
+            seconds=interpolate_value(gradient_1.seconds, gradient_2.seconds, ratio),
+            color_1=interpolate_colors(gradient_1.color_1, gradient_2.color_1, ratio),
+            color_2=interpolate_colors(gradient_1.color_2, gradient_2.color_2, ratio),
+            brightness=interpolate_value(gradient_1.brightness, gradient_2.brightness, ratio),
+            scroll_speed=interpolate_value(gradient_1.scroll_speed, gradient_2.scroll_speed, ratio),
         )
     return gradient

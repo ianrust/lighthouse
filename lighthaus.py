@@ -10,8 +10,9 @@ import time
 from lib.color import Color
 from lib.gradient import Gradient, interpolate_gradients
 from lib.neopixel_writer import create_neopixel_writer
-from lib.schedule import update_from_schedule_async, get_seconds_now
+from lib.schedule import update_from_schedule_async, get_seconds_since_epoch
 from lib.server import setup_endpoint
+from lib.utils import clamp
 
 
 class LighthausController(object):
@@ -30,7 +31,7 @@ class LighthausController(object):
 
         # gradient coming from color schedule file
         self.scheduled_gradient = Gradient(
-                seconds=get_seconds_now(),
+                seconds=get_seconds_since_epoch(),
                 color_1=initial_color_1,
                 color_2=initial_color_2,
                 scroll_speed=initial_scroll_speed,
@@ -40,7 +41,7 @@ class LighthausController(object):
         # gradient last set to leds
         self.current_gradient = self.scheduled_gradient
 
-        # gradient sent by usuer
+        # gradient sent by user
         self.user_gradient = Gradient(
                 seconds=0,
                 color_1=initial_color_1,
@@ -69,32 +70,35 @@ class LighthausController(object):
         while True:
 
             # Fade in/out the user inputs from the flask server
-            time_since_input = get_seconds_now() - self.transition_gradient.seconds
+            time_since_input = get_seconds_since_epoch() - self.transition_gradient.seconds
 
             # default, be on schedule
-            faded_gradient = self.scheduled_gradient
-            user_ratio = 0
-            # in fade-in transition between the transition gradient and the selected user gradient
-            if time_since_input < self.fade_in_time:
-                user_ratio = time_since_input / self.fade_in_time
-                user_ratio = max(user_ratio, 0.0)
-                user_ratio = min(user_ratio, 1.0)
-                faded_gradient = interpolate_gradients(self.user_gradient, self.transition_gradient, user_ratio)
-            # in fade out go between user gradient and the scheduled gradient 
-            elif time_since_input > self.fade_in_time and time_since_input < (self.fade_in_time + self.fade_out_time):
-                user_ratio = 1.0 - ((time_since_input - self.fade_in_time) / self.fade_out_time)
-                user_ratio = max(user_ratio, 0.0)
-                user_ratio = min(user_ratio, 1.0)
-                faded_gradient = interpolate_gradients(self.user_gradient, self.scheduled_gradient, user_ratio)
+            gradient_to_write = self.scheduled_gradient
+
+            total_fade_time = self.fade_in_time + self.fade_out_time
+            is_fading_in = time_since_input < self.fade_in_time
+            is_fading_out = self.fade_in_time < time_since_input < total_fade_time
+
+            if is_fading_in:
+                # in fade-in transition between the transition gradient and the selected user gradient
+                user_ratio = clamp(time_since_input / self.fade_in_time, 0, 1)
+                gradient_to_write = interpolate_gradients(self.user_gradient, self.transition_gradient,
+                                                          user_ratio)
+            elif is_fading_out:
+                # in fade out go between user gradient and the scheduled gradient
+                time_into_fade_out = time_since_input - self.fade_in_time
+                scheduled_ratio = clamp(time_into_fade_out / self.fade_out_time, 0, 1)
+                gradient_to_write = interpolate_gradients(self.scheduled_gradient, self.user_gradient,
+                                                          scheduled_ratio)
 
             # Run a counter to scroll the gradient
-            current_offset = (current_offset + faded_gradient.scroll_speed) % 1
+            current_offset = (current_offset + gradient_to_write.scroll_speed) % 1
             # scroll with current gradient
-            writer.write_gradient(faded_gradient, offset=current_offset)
+            writer.write_gradient(gradient_to_write, offset=current_offset)
 
             # store for passing to transition_gradient when a new color is received
-            self.current_gradient = faded_gradient
-            self.current_gradient.seconds = get_seconds_now()
+            self.current_gradient = gradient_to_write
+            self.current_gradient.seconds = get_seconds_since_epoch()
 
             self._check_queue(in_q)
             time.sleep(self.sleep_time)

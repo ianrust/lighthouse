@@ -21,7 +21,7 @@ def get_seconds_into_day():
     return seconds_into_day
 
 
-def get_seconds_now():
+def get_seconds_since_epoch():
     now = datetime.datetime.now()
     epoch = datetime.datetime.utcfromtimestamp(0)
 
@@ -49,10 +49,10 @@ def get_sunrise_and_sunset_seconds() -> Tuple[int, int]:
     return int(sunrise_secs), int(sunset_secs)
 
 
-def get_gradient_infos_from_schedule_file(schedule_file_name: str) -> List[Gradient]:
+def get_gradients_from_schedule_file(schedule_file_name: str) -> List[Gradient]:
     sunrise_secs, sunset_secs = get_sunrise_and_sunset_seconds()
 
-    gradient_infos = []
+    gradients = []
 
     with open(schedule_file_name) as schedule_file:
         reader = csv.DictReader(schedule_file)
@@ -80,7 +80,7 @@ def get_gradient_infos_from_schedule_file(schedule_file_name: str) -> List[Gradi
                 blue=int(line['blue_2']),
             )
 
-            gradient_infos.append(
+            gradients.append(
                 Gradient(
                     seconds=seconds,
                     color_1=color_1,
@@ -89,13 +89,13 @@ def get_gradient_infos_from_schedule_file(schedule_file_name: str) -> List[Gradi
                     scroll_speed=float(line['scroll_speed']),
                 )
             )
-        return sorted(gradient_infos, key=lambda gradient: gradient.seconds)
+        return sorted(gradients, key=lambda gradient: gradient.seconds)
 
 
 SECONDS_IN_DAY = 24 * 60 * 60
 
 
-def get_colors_from_schedule_file(
+def get_scheduled_gradient(
         schedule_file_name: str = 'color_schedule.csv'
 ) -> Gradient:
     """
@@ -111,17 +111,17 @@ def get_colors_from_schedule_file(
     :param schedule_file_name:
     :return: (color_1, color_2, brightness, speed) - scheduled colors
     """
-    gradient_infos = get_gradient_infos_from_schedule_file(schedule_file_name)
+    gradients = get_gradients_from_schedule_file(schedule_file_name)
 
     # Get time points before and after the current time
-    min_seconds = gradient_infos[0].seconds
-    max_seconds = gradient_infos[-1].seconds
+    min_seconds = gradients[0].seconds
+    max_seconds = gradients[-1].seconds
 
     seconds_into_day = get_seconds_into_day()
 
     if seconds_into_day <= min_seconds or seconds_into_day >= max_seconds:
-        gradient_1 = gradient_infos[0]
-        gradient_2 = gradient_infos[-1]
+        gradient_1 = gradients[0]
+        gradient_2 = gradients[-1]
 
         gradient_2_to_midnight = SECONDS_IN_DAY - gradient_2.seconds
 
@@ -135,12 +135,12 @@ def get_colors_from_schedule_file(
             ratio = (seconds_into_day - gradient_2.seconds) / delta_between_gradients
     else:
         earlier_gradients = [
-            tpi for tpi in gradient_infos
-            if tpi.seconds <= seconds_into_day
+            g for g in gradients
+            if g.seconds <= seconds_into_day
         ]
         later_gradients = [
-            tpi for tpi in gradient_infos
-            if tpi.seconds >= seconds_into_day
+            g for g in gradients
+            if g.seconds >= seconds_into_day
         ]
 
         gradient_1 = earlier_gradients[-1]
@@ -153,14 +153,14 @@ def get_colors_from_schedule_file(
             ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
 
     scheduled_gradient = interpolate_gradients(gradient_1, gradient_2, ratio)
-    scheduled_gradient.seconds = get_seconds_now()
+    scheduled_gradient.seconds = get_seconds_since_epoch()
 
     return scheduled_gradient
 
 
 def update_from_schedule_continuously(out_q: queue.Queue):
     while True:
-        scheduled_gradient = get_colors_from_schedule_file()
+        scheduled_gradient = get_scheduled_gradient()
 
         out_q.put({
             'scheduled_gradient': scheduled_gradient 
