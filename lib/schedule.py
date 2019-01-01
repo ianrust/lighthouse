@@ -13,8 +13,11 @@ from lib.gradient import Gradient, interpolate_gradients
 from lib.color import Color
 
 
-def get_seconds_into_day():
+def get_seconds_into_day(warp_reference = None, speed = 1.0):
     now = datetime.datetime.now()
+    if not warp_reference is None:
+        warp_diff = now - warp_reference
+        now += warp_diff * speed
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     seconds_into_day = (now - midnight).total_seconds()
@@ -95,7 +98,8 @@ def get_gradients_from_schedule_file(schedule_file_name: str) -> List[Gradient]:
 SECONDS_IN_DAY = 24 * 60 * 60
 
 
-def get_scheduled_gradient(
+# Returns a functions that will quickly interpolate based on "now"
+def get_scheduled_gradient_interpolator(
         schedule_file_name: str = 'color_schedule.csv'
 ) -> Gradient:
     """
@@ -113,57 +117,60 @@ def get_scheduled_gradient(
     """
     gradients = get_gradients_from_schedule_file(schedule_file_name)
 
-    # Get time points before and after the current time
-    min_seconds = gradients[0].seconds
-    max_seconds = gradients[-1].seconds
+    def schedule_interpolator(ref: datetime.datetime, speedup_factor: float):
+        # Get time points before and after the current time
+        min_seconds = gradients[0].seconds
+        max_seconds = gradients[-1].seconds
 
-    seconds_into_day = get_seconds_into_day()
+        seconds_into_day = get_seconds_into_day(ref, speedup_factor)
 
-    if seconds_into_day <= min_seconds or seconds_into_day >= max_seconds:
-        gradient_1 = gradients[0]
-        gradient_2 = gradients[-1]
+        if seconds_into_day <= min_seconds or seconds_into_day >= max_seconds:
+            gradient_1 = gradients[-1]
+            gradient_2 = gradients[0]
 
-        gradient_2_to_midnight = SECONDS_IN_DAY - gradient_2.seconds
+            gradient_1_to_midnight = SECONDS_IN_DAY - gradient_1.seconds
 
-        # (seconds from midnight to gradient_1) + (seconds from gradient_2 to end of day)
-        delta_between_gradients = gradient_1.seconds + gradient_2_to_midnight
+            # (seconds from midnight to gradient_2) + (seconds from gradient_1 to end of day)
+            delta_between_gradients = gradient_2.seconds + gradient_1_to_midnight
 
-        if seconds_into_day <= min_seconds:
-            ratio = (gradient_2_to_midnight + seconds_into_day) / delta_between_gradients
+            if seconds_into_day <= min_seconds:
+                ratio = (gradient_1_to_midnight + seconds_into_day) / delta_between_gradients
+            else:
+                assert seconds_into_day >= max_seconds
+                ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
         else:
-            assert seconds_into_day >= max_seconds
-            ratio = (seconds_into_day - gradient_2.seconds) / delta_between_gradients
-    else:
-        earlier_gradients = [
-            g for g in gradients
-            if g.seconds <= seconds_into_day
-        ]
-        later_gradients = [
-            g for g in gradients
-            if g.seconds >= seconds_into_day
-        ]
+            earlier_gradients = [
+                g for g in gradients
+                if g.seconds <= seconds_into_day
+            ]
+            later_gradients = [
+                g for g in gradients
+                if g.seconds >= seconds_into_day
+            ]
 
-        gradient_1 = earlier_gradients[-1]
-        gradient_2 = later_gradients[0]
+            gradient_1 = earlier_gradients[-1]
+            gradient_2 = later_gradients[0]
 
-        if gradient_1 == gradient_2:
-            ratio = 0
-        else:
-            delta_between_gradients = gradient_2.seconds - gradient_1.seconds
-            ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
+            if gradient_1 == gradient_2:
+                ratio = 0
+            else:
+                delta_between_gradients = gradient_2.seconds - gradient_1.seconds
+                ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
 
-    scheduled_gradient = interpolate_gradients(gradient_1, gradient_2, ratio)
-    scheduled_gradient.seconds = get_seconds_since_epoch()
+        scheduled_gradient = interpolate_gradients(gradient_1, gradient_2, ratio)
+        scheduled_gradient.seconds = get_seconds_since_epoch()
 
-    return scheduled_gradient
+        return scheduled_gradient
+
+    return schedule_interpolator
 
 
 def update_from_schedule_continuously(out_q: queue.Queue):
     while True:
-        scheduled_gradient = get_scheduled_gradient()
+        schedule_interpolator = get_scheduled_gradient_interpolator()
 
         out_q.put({
-            'scheduled_gradient': scheduled_gradient 
+            'schedule_interpolator': schedule_interpolator 
         })
 
         time.sleep(1)

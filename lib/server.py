@@ -51,11 +51,32 @@ def set_user_gradient(out_q: queue.Queue):
         sys.stdout.flush()
         return jsonify({'success': False}), 400
 
+def set_fast_mode(out_q: queue.Queue):
+    try:
+        print(request.json)
+        sys.stdout.flush()
+        out_q.put({
+            'fast_mode': request.json['fast_mode']
+        })
+
+        print('Received new fast mode: {}'.format(request.json['fast_mode']))
+        sys.stdout.flush()
+
+        return jsonify({'success': True}), 201
+    except:
+        print('Received bad request: {}'.format(request.json))
+        sys.stdout.flush()
+        return jsonify({'success': False}), 400
 
 def setup_endpoint(app, out_q: queue.Queue):
     app.add_url_rule(
         '/',
         view_func=set_user_gradient,
+        defaults={'out_q': out_q},
+        methods=['POST'])
+    app.add_url_rule(
+        '/fast_mode',
+        view_func=set_fast_mode,
         defaults={'out_q': out_q},
         methods=['POST'])
     app.run(host='0.0.0.0', debug=False)
