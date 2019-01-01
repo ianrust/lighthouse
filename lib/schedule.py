@@ -12,7 +12,6 @@ import requests
 from lib.gradient import Gradient, interpolate_gradients
 from lib.color import Color
 
-ref = datetime.datetime.now()
 
 def get_seconds_into_day(warp_reference = None, speed = 1.0):
     now = datetime.datetime.now()
@@ -46,11 +45,9 @@ def get_sunrise_and_sunset_seconds() -> Tuple[int, int]:
 
     sunrise_dt = maya.parse(json_resp['results']['sunrise']).datetime(to_timezone='US/Pacific', naive=True)
     sunrise_secs = (sunrise_dt - midnight).total_seconds()
-    print("sunrise secs", sunrise_secs)
 
     sunset_dt = maya.parse(json_resp['results']['sunset']).datetime(to_timezone='US/Pacific', naive=True)
     sunset_secs = (sunset_dt - midnight).total_seconds()
-    print("sunrise secs", sunrise_secs)
 
     return int(sunrise_secs), int(sunset_secs)
 
@@ -120,10 +117,12 @@ def get_scheduled_gradient_interpolator(
     """
     gradients = get_gradients_from_schedule_file(schedule_file_name)
 
-    def schedule_interpolator():
+    def schedule_interpolator(ref: datetime.datetime, speedup_factor: float):
         # Get time points before and after the current time
         min_seconds = gradient_infos[0].seconds
         max_seconds = gradient_infos[-1].seconds
+
+        seconds_into_day = get_seconds_into_day(ref, speedup_factor)
 
         if seconds_into_day <= min_seconds or seconds_into_day >= max_seconds:
             gradient_1 = gradient_infos[-1]
@@ -131,7 +130,7 @@ def get_scheduled_gradient_interpolator(
 
             gradient_1_to_midnight = SECONDS_IN_DAY - gradient_1.seconds
 
-            # (seconds from midnight to gradient_1) + (seconds from gradient_2 to end of day)
+            # (seconds from midnight to gradient_2) + (seconds from gradient_1 to end of day)
             delta_between_gradients = gradient_2.seconds + gradient_1_to_midnight
 
             if seconds_into_day <= min_seconds:
@@ -159,7 +158,7 @@ def get_scheduled_gradient_interpolator(
                 ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
 
         scheduled_gradient = interpolate_gradients(gradient_1, gradient_2, ratio)
-        scheduled_gradient.seconds = get_seconds_now()
+        scheduled_gradient.seconds = get_seconds_since_epoch()
 
         return scheduled_gradient
 

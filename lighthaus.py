@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import datetime
 from flask import Flask
 import itertools
 import queue
@@ -26,6 +27,7 @@ class LighthausController(object):
             brightness: float = 1.0,
             fade_in_time: float = 5.0,
             fade_out_time: float = 20.0,
+            speedup_factor: float = 5000.0,
     ):
         self.writer = writer
 
@@ -61,6 +63,9 @@ class LighthausController(object):
         self.sleep_time = sleep_time
         self.fade_in_time = fade_in_time
         self.fade_out_time = fade_out_time
+        self.speedup_factor = speedup_factor
+        # float of time it was requested if needed, else None
+        self.fast_mode_ref = None
 
         self.is_running = False
 
@@ -72,12 +77,12 @@ class LighthausController(object):
 
         while True:
 
+            # evaluate interpolator, apply speedup only if set that way
+            if not self.schedule_interpolator is None:
+                self.scheduled_gradient = self.schedule_interpolator(self.fast_mode_ref, self.speedup_factor)
+
             # Fade in/out the user inputs from the flask server
             time_since_input = get_seconds_since_epoch() - self.transition_gradient.seconds
-
-            # evaluate interpolator
-            if not self.schedule_interpolator is None:
-                self.scheduled_gradient = self.schedule_interpolator()
 
             # default, be on schedule
             gradient_to_write = self.scheduled_gradient
@@ -89,13 +94,13 @@ class LighthausController(object):
             if is_fading_in:
                 # in fade-in transition between the transition gradient and the selected user gradient
                 user_ratio = clamp(time_since_input / self.fade_in_time, 0, 1)
-                gradient_to_write = interpolate_gradients(self.user_gradient, self.transition_gradient,
+                gradient_to_write = interpolate_gradients(self.transition_gradient, self.user_gradient,
                                                           user_ratio)
             elif is_fading_out:
                 # in fade out go between user gradient and the scheduled gradient
                 time_into_fade_out = time_since_input - self.fade_in_time
                 scheduled_ratio = clamp(time_into_fade_out / self.fade_out_time, 0, 1)
-                gradient_to_write = interpolate_gradients(self.scheduled_gradient, self.user_gradient,
+                gradient_to_write = interpolate_gradients(self.user_gradient, self.scheduled_gradient,
                                                           scheduled_ratio)
 
             # Run a counter to scroll the gradient
@@ -113,14 +118,24 @@ class LighthausController(object):
     def _check_queue(self, in_q: queue.Queue):
         try:
             new_config = in_q.get(block=False)
-            print('new_config', new_config)
-            sys.stdout.flush()
 
+            # silent message parsing
             if 'schedule_interpolator' in new_config:
                 self.schedule_interpolator = new_config['schedule_interpolator']
+            else:
+                # print out other messages coming in
+                print('new_config', new_config)
+                sys.stdout.flush()
+
+            # logged message parsing
             if 'user_gradient' in new_config:
                 self.user_gradient = new_config['user_gradient']
                 self.transition_gradient = self.current_gradient
+            if 'fast_mode' in new_config:
+                if (new_config['fast_mode']):
+                    self.fast_mode_ref = datetime.datetime.now()
+                else:
+                    self.fast_mode_ref = None
 
             in_q.task_done()
         except queue.Empty:
