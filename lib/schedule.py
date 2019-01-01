@@ -119,14 +119,14 @@ def get_scheduled_gradient_interpolator(
 
     def schedule_interpolator(ref: datetime.datetime, speedup_factor: float):
         # Get time points before and after the current time
-        min_seconds = gradient_infos[0].seconds
-        max_seconds = gradient_infos[-1].seconds
+        min_seconds = gradients[0].seconds
+        max_seconds = gradients[-1].seconds
 
         seconds_into_day = get_seconds_into_day(ref, speedup_factor)
 
         if seconds_into_day <= min_seconds or seconds_into_day >= max_seconds:
-            gradient_1 = gradient_infos[-1]
-            gradient_2 = gradient_infos[0]
+            gradient_1 = gradients[-1]
+            gradient_2 = gradients[0]
 
             gradient_1_to_midnight = SECONDS_IN_DAY - gradient_1.seconds
 
@@ -140,12 +140,12 @@ def get_scheduled_gradient_interpolator(
                 ratio = (seconds_into_day - gradient_1.seconds) / delta_between_gradients
         else:
             earlier_gradients = [
-                g for g in gradient_infos
-                if tpi.seconds <= seconds_into_day
+                g for g in gradients
+                if g.seconds <= seconds_into_day
             ]
             later_gradients = [
-                g for g in gradient_infos
-                if tpi.seconds >= seconds_into_day
+                g for g in gradients
+                if g.seconds >= seconds_into_day
             ]
 
             gradient_1 = earlier_gradients[-1]
@@ -167,13 +167,13 @@ def get_scheduled_gradient_interpolator(
 
 def update_from_schedule_continuously(out_q: queue.Queue):
     while True:
-        schedule_interpolator = get_schedule_gradient_interpolator()
+        schedule_interpolator = get_scheduled_gradient_interpolator()
 
         out_q.put({
             'schedule_interpolator': schedule_interpolator 
         })
 
-        time.sleep(0.01)
+        time.sleep(1)
 
 
 def update_from_schedule_async(out_q: queue.Queue):
