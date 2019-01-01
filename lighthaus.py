@@ -25,7 +25,7 @@ class LighthausController(object):
             sleep_time: float = 0.01,
             brightness: float = 1.0,
             fade_in_duration: float = 5.0,
-            sustain_user_duration: float = 10.0,
+            sustain_user_duration: float = 30.0,
             fade_out_duration: float = 20.0,
     ):
         self.writer = writer
