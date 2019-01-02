@@ -1,4 +1,5 @@
 from typing import List, Union
+from math import exp
 
 
 # maps line of 0-1 to a triangle from 0 to 1 back to 0 (in the same distance)
@@ -24,12 +25,17 @@ def shift(ratio: float, offset: float) -> float:
         return shifted_ratio
 
 
+# sigmoid function for making harder edges (centered at 0.5)
+def sigmoid(ratio: float, exponent: float = 20.0) -> float:
+    return 1.0 / (1.0 + exp(- (ratio - 0.5) * exponent))
+
+
 def generate_ratios(num_steps: int, offset: float) -> List[float]:
     if num_steps == 0:
         return [0]
 
     return [
-        line_to_triangle(shift(step / num_steps, offset))
+        sigmoid(line_to_triangle(shift(step / num_steps, offset)))
         for step in range(num_steps)
     ]
 
