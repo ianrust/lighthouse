@@ -1,18 +1,21 @@
 from typing import List, Union
 
 
-def generate_ratios(num_steps: int, include_1: bool = True) -> List[float]:
+# maps line of 0-1 to a triangle from 0 to 1 back to 0
+def triangle(ratio: float) -> float:
+    doubled_ratio = 2.0 * ratio
+    if doubled_ratio <= 1.0:
+        return doubled_ratio
+    else:
+        return -doubled_ratio + 2.0
+
+
+def generate_ratios(num_steps: int) -> List[float]:
     if num_steps == 0:
         return [0]
 
-    if include_1:
-        return [
-            step * 1 / (num_steps - 1)
-            for step in range(num_steps)
-        ]
-
     return [
-        step * 1 / num_steps
+        triangle(step * 1 / (num_steps - 1))
         for step in range(num_steps)
     ]
 
