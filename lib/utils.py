@@ -10,12 +10,24 @@ def triangle(ratio: float) -> float:
         return -doubled_ratio + 2.0
 
 
-def generate_ratios(num_steps: int) -> List[float]:
+# takes a line from offset to 1+offset and moves it inside
+# the window from 0-1
+def shift(ratio: float, offset: float) -> float:
+    shifted_ratio = ratio + offset
+    if shifted_ratio < 0:
+        return shifted_ratio + 1.0
+    elif shifted_ratio > 1.0:
+        return shifted_ratio - 1.0
+    else:
+        return shifted_ratio
+
+
+def generate_ratios(num_steps: int, offset: float) -> List[float]:
     if num_steps == 0:
         return [0]
 
     return [
-        triangle(step * 1 / (num_steps - 1))
+        triangle(shift(step * 1 / (num_steps - 1), offset))
         for step in range(num_steps)
     ]
 

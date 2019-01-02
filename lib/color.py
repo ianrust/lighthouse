@@ -47,9 +47,10 @@ def generate_color_gradient(
         color_1: Color,
         color_2: Color,
         num_steps: int,
-        brightness: float
+        brightness: float,
+        offset: float = 0
 ) -> List[Color]:
-    ratios = generate_ratios(num_steps)
+    ratios = generate_ratios(num_steps, offset)
 
     color_list = [
         interpolate_colors(color_1, color_2, ratio, brightness)

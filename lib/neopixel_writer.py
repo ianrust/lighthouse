@@ -52,13 +52,8 @@ class NeoPixelWriter(object):
             gradient.color_2,
             int(self.num_pixels / 2),
             brightness=gradient.brightness,
+            offset=offset,
         )
-
-        if offset:
-            assert 0 <= offset < 1
-
-            offset_pixels = int(offset * (self.num_pixels / 2 - 1))
-            half_color_list = rotate_list(half_color_list, offset_pixels)
 
         color_list = half_color_list + list(reversed(half_color_list))
 
