@@ -1,13 +1,15 @@
 from typing import List, Union
 
 
-# maps line of 0-1 to a triangle from 0 to 1 back to 0
-def triangle(ratio: float) -> float:
-    doubled_ratio = 2.0 * ratio
-    if doubled_ratio <= 1.0:
-        return doubled_ratio
-    else:
-        return -doubled_ratio + 2.0
+# maps line of 0-1 to a triangle from 0 to 1 back to 0 (in the same distance)
+def line_to_triangle(ratio: float) -> float:
+    # equation for like from 0 to 1 in half the distance (0 to 0.5)
+    if ratio <= 0.5:
+        return ratio * 2
+
+    assert ratio <= 1.0
+    # equation from 1 to 0 starting at 0.5 and going to 1
+    return (1 - ratio) * 2
 
 
 # takes a line from offset to 1+offset and moves it inside
@@ -27,7 +29,7 @@ def generate_ratios(num_steps: int, offset: float) -> List[float]:
         return [0]
 
     return [
-        triangle(shift(step * 1 / (num_steps - 1), offset))
+        line_to_triangle(shift(step / num_steps, offset))
         for step in range(num_steps)
     ]
 
