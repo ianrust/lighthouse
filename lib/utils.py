@@ -1,18 +1,41 @@
 from typing import List, Union
+from math import exp
 
 
-def generate_ratios(num_steps: int, include_1: bool = True) -> List[float]:
+# maps line of 0-1 to a triangle from 0 to 1 back to 0 (in the same distance)
+def line_to_triangle(ratio: float) -> float:
+    # equation for like from 0 to 1 in half the distance (0 to 0.5)
+    if ratio <= 0.5:
+        return ratio * 2
+
+    assert ratio <= 1.0
+    # equation from 1 to 0 starting at 0.5 and going to 1
+    return (1 - ratio) * 2
+
+
+# takes a line from offset to 1+offset and moves it inside
+# the window from 0-1
+def shift(ratio: float, offset: float) -> float:
+    shifted_ratio = ratio + offset
+    if shifted_ratio < 0:
+        return shifted_ratio + 1.0
+    elif shifted_ratio > 1.0:
+        return shifted_ratio - 1.0
+    else:
+        return shifted_ratio
+
+
+# sigmoid function for making harder edges (centered at 0.5)
+def sigmoid(ratio: float, exponent: float = 20.0) -> float:
+    return 1.0 / (1.0 + exp(- (ratio - 0.5) * exponent))
+
+
+def generate_ratios(num_steps: int, offset: float) -> List[float]:
     if num_steps == 0:
         return [0]
 
-    if include_1:
-        return [
-            step * 1 / (num_steps - 1)
-            for step in range(num_steps)
-        ]
-
     return [
-        step * 1 / num_steps
+        sigmoid(line_to_triangle(shift(step / num_steps, offset)))
         for step in range(num_steps)
     ]
 
